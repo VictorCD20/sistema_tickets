@@ -122,9 +122,9 @@ abierta -> en_proceso -> en_espera -> en_proceso -> resuelta -> cerrada
 
 | Área | Ejemplos de información específica | Roles principales |
 | --- | --- | --- |
-| Cómputo y Telecomunicaciones | Dirección IP, VLAN, puerto uplink, equipos afectados, tipo de falla. | Reportante, técnico de redes, coordinador. |
-| Infraestructura Física y Mantenimiento | Tipo de daño, riesgo de seguridad, insumos, contratista requerido. | Reportante, técnico de mantenimiento, coordinador. |
-| Sistemas y Servicios Académicos | Plataforma, código de curso, periodo escolar, estudiantes afectados. | Reportante, técnico de sistemas, Directivo. |
+| Cómputo y Telecomunicaciones | Dirección IP, VLAN, puerto uplink, equipos afectados, tipo de falla. | Reportante, técnico operativo, coordinador. |
+| Infraestructura Física y Mantenimiento | Tipo de daño, riesgo de seguridad, insumos, contratista requerido. | Reportante, técnico operativo, coordinador. |
+| Sistemas y Servicios Académicos | Plataforma, código de curso, periodo escolar, estudiantes afectados. | Reportante, Soporte TI, coordinador. |
 
 ## 8. Requisitos funcionales
 
