@@ -120,11 +120,94 @@ abierta -> en_proceso -> en_espera -> en_proceso -> resuelta -> cerrada
 
 ## 7. Categorías de incidencia
 
-| Área | Ejemplos de información específica | Roles principales |
+Toda incidencia compartirá datos generales y tendrá un campo `detalle_especifico` con una estructura distinta según su categoría. Esto permite aplicar polimorfismo documental sin llenar el documento con campos nulos.
+
+### 7.1 Datos generales
+
+El documento base solicita los siguientes datos para todas las incidencias:
+
+- `titulo`
+- `descripcion`
+- `categoria`
+- `prioridad`
+- `reportante{}`
+- `ubicacion{}`
+- `estado`
+- `tags[]`
+- `historial_seguimiento[]`
+- `evidencias_adjuntas[]`
+- `horas_invertidas`
+- `fecha_creacion`
+- `fecha_resolucion`, cuando corresponda
+
+El sistema también deberá generar un código formal, por ejemplo `INC-2026-0042`.
+
+### 7.2 Campos específicos por categoría
+
+| Categoría | Datos específicos solicitados | Roles principales |
 | --- | --- | --- |
-| Cómputo y Telecomunicaciones | Dirección IP, VLAN, puerto uplink, equipos afectados, tipo de falla. | Reportante, técnico operativo, coordinador. |
-| Infraestructura Física y Mantenimiento | Tipo de daño, riesgo de seguridad, insumos, contratista requerido. | Reportante, técnico operativo, coordinador. |
-| Sistemas y Servicios Académicos | Plataforma, código de curso, periodo escolar, estudiantes afectados. | Reportante, Soporte TI, coordinador. |
+| Cómputo y Telecomunicaciones | Dirección IP, VLAN, puerto uplink y conteo de equipos afectados. | Reportante, técnico operativo y coordinador. |
+| Infraestructura Física y Mantenimiento | Tipo de daño, riesgo para la seguridad, requerimiento de insumos e intervención de contratistas externos. | Reportante, técnico operativo y coordinador. |
+| Sistemas y Servicios Académicos | Plataforma afectada, código de curso, periodo escolar y cantidad de estudiantes impactados. | Reportante, Soporte TI y coordinador. |
+
+### 7.3 Ejemplos de detalle específico
+
+#### Cómputo y Telecomunicaciones
+
+```json
+{
+  "categoria": "computo_telecomunicaciones",
+  "detalle_especifico": {
+    "direccion_ip": "192.168.10.25",
+    "vlan": 20,
+    "puerto_uplink": "SW-B-02-14",
+    "equipos_afectados": 25
+  }
+}
+```
+
+#### Infraestructura Física y Mantenimiento
+
+```json
+{
+  "categoria": "infraestructura",
+  "detalle_especifico": {
+    "tipo_dano": "filtracion",
+    "riesgo_seguridad": true,
+    "requiere_insumos": true,
+    "requiere_contratista": true
+  }
+}
+```
+
+#### Sistemas y Servicios Académicos
+
+```json
+{
+  "categoria": "sistemas_academicos",
+  "detalle_especifico": {
+    "plataforma": "Portal de calificaciones",
+    "codigo_curso": "BDN-2026",
+    "periodo_escolar": "2026-B",
+    "estudiantes_impactados": 80
+  }
+}
+```
+
+### 7.4 Requisitos mínimos de población
+
+La colección deberá incluir:
+
+- Entre 20 y 30 incidencias sintéticas.
+- Distribución balanceada entre las tres categorías.
+- Al menos cuatro edificios o zonas.
+- Prioridades `baja`, `media`, `alta` y `critica`.
+- Estados `abierta`, `en_proceso`, `en_espera`, `resuelta` y `cerrada`.
+- Incidencias recurrentes.
+- Mínimo ocho incidencias con `fecha_resolucion`.
+- Mínimo quince incidencias con evidencias adjuntas.
+
+Los campos como marca del dispositivo, nivel de riesgo, mensaje de error, tipo de usuario afectado o zona afectada pueden agregarse como ampliaciones del equipo, pero no son campos obligatorios expresamente definidos por el documento base.
 
 ## 8. Requisitos funcionales
 
