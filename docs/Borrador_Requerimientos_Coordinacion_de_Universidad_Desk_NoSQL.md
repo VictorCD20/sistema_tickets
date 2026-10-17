@@ -75,12 +75,10 @@ El registro será abierto, pero todo usuario nuevo recibirá automáticamente el
 | --- | --- | --- |
 | Reportante | Registrarse, iniciar sesión, crear incidencias, adjuntar evidencias y consultar sus propios reportes. | No asigna técnicos, no cambia roles y no cierra incidencias. |
 | Técnico operativo | Atender casos asignados, registrar diagnóstico, horas, comentarios, etiquetas y evidencias; marcar como resuelta. | No administra usuarios ni cierra definitivamente. |
-| Coordinador de soporte | Revisar casos, asignar y reasignar técnicos, ajustar prioridades, escalar, validar soluciones, cerrar y reabrir. | Sus acciones deben quedar auditadas. |
-| Coordinador de área | Supervisar una categoría específica, administrar etiquetas y asignaciones de su área. | No debe administrar categorías ajenas sin permiso. |
-| Analista de soporte | Buscar incidencias, consultar historial, filtros, etiquetas y reportes operativos. | Acceso principalmente de lectura. |
-| Coordinación de Universidad | Consultar todas las áreas, tiempos promedio, fallas recurrentes y métricas por edificio. | No modifica la operación diaria salvo autorización. |
-| Directivo | Consultar indicadores generales, incidencias críticas y tendencias ejecutivas. | Acceso limitado a datos personales y archivos sensibles. |
-| Bot asistente | Responder consultas autorizadas sobre estados, incidencias y métricas. | Sólo lectura; no crea, actualiza ni elimina datos. |
+| Coordinador | Revisar casos, asignar y reasignar técnicos, ajustar prioridades, administrar etiquetas, consultar reportes, escalar, validar soluciones, cerrar y reabrir. | Sus acciones deben quedar auditadas y su alcance puede limitarse por área. |
+| Directivo | Consultar indicadores generales, incidencias críticas, tendencias por edificio, tiempos de resolución y reportes consolidados. | Acceso limitado a datos personales y archivos sensibles; no opera incidencias diariamente. |
+| Soporte TI | Atender problemas de acceso, configuración, integraciones, disponibilidad de la plataforma y soporte técnico a usuarios. | No cambia roles ni modifica incidencias operativas sin autorización. |
+| Bot asistente | Responder consultas autorizadas sobre estados, incidencias y métricas mediante Groq API. | Sólo lectura; no crea, actualiza ni elimina datos. |
 
 ## 5. Autenticación, registro y autorización
 
@@ -124,9 +122,9 @@ abierta -> en_proceso -> en_espera -> en_proceso -> resuelta -> cerrada
 
 | Área | Ejemplos de información específica | Roles principales |
 | --- | --- | --- |
-| Cómputo y Telecomunicaciones | Dirección IP, VLAN, puerto uplink, equipos afectados, tipo de falla. | Reportante, técnico de redes, coordinador de soporte. |
-| Infraestructura Física y Mantenimiento | Tipo de daño, riesgo de seguridad, insumos, contratista requerido. | Reportante, técnico de mantenimiento, coordinador de área. |
-| Sistemas y Servicios Académicos | Plataforma, código de curso, periodo escolar, estudiantes afectados. | Reportante, técnico de sistemas, Coordinación de Universidad. |
+| Cómputo y Telecomunicaciones | Dirección IP, VLAN, puerto uplink, equipos afectados, tipo de falla. | Reportante, técnico de redes, coordinador. |
+| Infraestructura Física y Mantenimiento | Tipo de daño, riesgo de seguridad, insumos, contratista requerido. | Reportante, técnico de mantenimiento, coordinador. |
+| Sistemas y Servicios Académicos | Plataforma, código de curso, periodo escolar, estudiantes afectados. | Reportante, técnico de sistemas, Directivo. |
 
 ## 8. Requisitos funcionales
 
@@ -195,7 +193,7 @@ abierta -> en_proceso -> en_espera -> en_proceso -> resuelta -> cerrada
 | PATCH | /api/incidencias/:id/estado | Técnico y coordinador |
 | PATCH | /api/incidencias/:id/asignacion | Coordinador |
 | POST | /api/incidencias/:id/evidencias | Usuario autorizado |
-| GET | /api/analitica | Analista, Coordinación y Directivo |
+| GET | /api/analitica | Coordinador y Directivo |
 | PATCH | /api/usuarios/:id/roles | Coordinador autorizado |
 | GET | /api/bot/consulta | Usuario autenticado |
 
