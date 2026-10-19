@@ -1,6 +1,6 @@
 # Coordinación de Universidad Desk NoSQL
 
-Borrador de requisitos, roles y planificación técnica alineado con la implementación actual de la repositorio utm-desk-nosql-cloud. El documento separa las funciones ya implementadas de las propuestas para fases posteriores.
+Borrador de requisitos, roles y planificación técnica alineado con la implementación actual del repositorio utm-desk-nosql-cloud. El documento separa las funciones ya implementadas de las propuestas para fases posteriores.
 
 ## 1. Alcance y decisión arquitectónica
 
