@@ -1,300 +1,140 @@
 # Coordinación de Universidad Desk NoSQL
 
-Borrador de requisitos, roles y arquitectura del sistema
+Borrador de requisitos, roles y planificación técnica alineado con la implementación actual de la repositorio utm-desk-nosql-cloud. El documento separa las funciones ya implementadas de las propuestas para fases posteriores.
 
-Este documento define una primera versión del funcionamiento de Coordinación de Universidad Desk: un sistema para registrar, atender, dar seguimiento y analizar incidencias del campus universitario. El borrador integra la arquitectura híbrida acordada, los roles de usuario, la distribución de responsabilidades entre PostgreSQL y MongoDB, y los requisitos funcionales y no funcionales del proyecto.
+## 1. Alcance y decisión arquitectónica
 
-El documento se encuentra en etapa de definición. Las decisiones aquí descritas deben validarse con el equipo y con el docente antes de iniciar la implementación final.
+La versión actual es una aplicación web para registrar, consultar, atender, resolver y analizar incidencias universitarias. MongoDB Atlas es la fuente principal del sistema: almacena usuarios, incidencias y contadores. Supabase se utiliza únicamente como almacenamiento privado de evidencias. La autenticación actual es propia, con contraseñas cifradas mediante bcrypt y sesiones JWT.
 
-## 1. Alcance del sistema
-
-Coordinación de Universidad Desk permitirá que usuarios del campus registren incidencias relacionadas con tres áreas operativas: Cómputo y Telecomunicaciones, Infraestructura Física y Mantenimiento, y Sistemas y Servicios Académicos. El sistema almacenará cada incidencia como un expediente documental en MongoDB, conservará su trazabilidad y ofrecerá consultas operativas y analíticas.
-
-- Registro abierto de usuarios con rol inicial de reportante.
-- Autenticación mediante Supabase Auth.
-- Gestión de perfiles y roles en PostgreSQL mediante Supabase.
-- Gestión de incidencias y seguimiento en MongoDB Atlas.
-- Almacenamiento de imágenes y documentos en Supabase Storage.
-- API y aplicación web desarrolladas con Next.js, React y TypeScript.
-- Despliegue en Vercel y trabajo colaborativo mediante Git.
-- Bot de consulta con Groq API, limitado inicialmente a operaciones de lectura.
-## 2. Arquitectura tecnológica
-
-La solución utilizará persistencia híbrida. Supabase será responsable de identidad, autenticación, roles y objetos multimedia. MongoDB Atlas será el núcleo operativo de las incidencias. El backend funcionará como única capa autorizada para comunicarse con las bases de datos y con el almacenamiento.
-
-| Tecnología | Responsabilidad | Alcance |
+| Capa | Tecnología actual | Responsabilidad |
 | --- | --- | --- |
-| Next.js | Aplicación web y API | Rutas, vistas, endpoints y despliegue integrado |
-| React | Interfaz de usuario | Formularios, paneles, tablas y vistas por rol |
-| TypeScript | Lenguaje del proyecto | Frontend, backend, validaciones y tipos compartidos |
-| Supabase Auth | Identidad y sesiones | Registro, login, JWT, recuperación y verificación |
-| PostgreSQL en Supabase | Roles y perfiles | Perfiles, roles, relación usuario-rol y auditoría |
-| MongoDB Atlas | Operación de incidencias | Tickets, historial, etiquetas, asignaciones y analítica |
-| Supabase Storage | Archivos | Imágenes, PDF y documentos de diagnóstico |
-| Redis o Upstash Redis | Consecutivos | Contador diario para códigos de incidencia |
-| Git | Colaboración | Ramas, historial, revisiones e integración del equipo |
-| Vercel | Despliegue | Publicación de la aplicación Next.js |
-| Groq API | Asistente de consulta | Respuestas sobre datos autorizados y seguimiento |
+| Frontend | React, Vite y Tailwind CSS | Login, formularios por categoría, bandeja, detalle, analítica y carga de evidencias. |
+| Backend | Node.js 20, Express y JavaScript ESM | API, validación, autorización, transiciones y reglas de negocio. |
+| Datos operativos | MongoDB Atlas, driver nativo | Colecciones usuarios, incidencias_campus y contadores; índices, TTL y agregaciones. |
+| Archivos | Supabase Storage | Bucket privado evidencias; URLs firmadas temporales para imágenes y PDF. |
+| Despliegue | Vercel y variables de entorno | Publicación del frontend/API y gestión de configuración. |
+| Colaboración | Git, GitHub y Postman/Newman | Trabajo por ramas, revisión, documentación y pruebas de API. |
 
-## 3. Distribución entre SQL y NoSQL
+No forman parte de la implementación actual: Next.js, TypeScript, Supabase Auth/PostgreSQL, Redis/Upstash, registro público, bot de Groq y un rol separado de Soporte TI. Pueden evaluarse como ampliaciones, pero no deben presentarse como funciones terminadas.
 
-### 3.1 PostgreSQL y Supabase
-
-PostgreSQL se utilizará para información estructurada de identidad y autorización. No almacenará el expediente operativo de la incidencia.
-
-| Elemento | Qué almacena | Regla |
-| --- | --- | --- |
-| auth.users | Identidad, correo, contraseña gestionada y estado de autenticación | Administrado por Supabase Auth |
-| perfiles | Nombre, apellidos, correo institucional y estado | Relacionado con auth.users |
-| roles | Catálogo de roles del sistema | No se modifica desde el registro público |
-| perfiles_roles | Relación entre usuarios y roles | El coordinador autorizado modifica roles |
-| auditoria_roles | Cambios de rol y responsable del cambio | Toda modificación debe quedar registrada |
-
-### 3.2 MongoDB Atlas
-
-MongoDB almacenará los datos que cambian durante el ciclo de vida de una incidencia. La información principal deberá permanecer en un documento autocontenido para cumplir el objetivo documental del proyecto.
-
-```text
-incidencias_campus | ubicaciones | tecnicos
-```
-
-- incidencias_campus: expediente completo de la incidencia.
-- ubicaciones: catálogo de lugares; la incidencia conserva un snapshot de la ubicación.
-- tecnicos: disponibilidad, categorías atendidas y referencia al perfil de Supabase.
-- El campo detalle_especifico será polimórfico según la categoría.
-- historial_seguimiento, tags y evidencias_adjuntas serán arreglos dentro del ticket.
-### 3.3 Archivos y referencias
-
-Los archivos físicos se guardarán en Supabase Storage. MongoDB conservará únicamente sus metadatos y la ruta del objeto. El backend generará URLs firmadas temporales para el acceso a archivos privados.
-
-## 4. Roles y responsabilidades
-
-El registro será abierto, pero todo usuario nuevo recibirá automáticamente el rol reportante. Los usuarios podrán editar sus datos personales, pero no podrán autoproclamarse técnicos, coordinadores o directivos. El coordinador autorizado será responsable de asignar o retirar roles. No se incorporará un administrador como rol operativo en esta versión.
+## 2. Roles y responsabilidades
 
 | Rol | Qué hará | Restricciones |
 | --- | --- | --- |
-| Reportante | Registrarse, iniciar sesión, crear incidencias, adjuntar evidencias y consultar sus propios reportes. | No asigna técnicos, no cambia roles y no cierra incidencias. |
-| Técnico operativo | Atender casos asignados, registrar diagnóstico, horas, comentarios, etiquetas y evidencias; marcar como resuelta. | No administra usuarios ni cierra definitivamente. |
-| Coordinador | Revisar casos, asignar y reasignar técnicos, ajustar prioridades, administrar etiquetas, consultar reportes, escalar, validar soluciones, cerrar y reabrir. | Sus acciones deben quedar auditadas y su alcance puede limitarse por área. |
-| Directivo | Consultar indicadores generales, incidencias críticas, tendencias por edificio, tiempos de resolución y reportes consolidados. | Acceso limitado a datos personales y archivos sensibles; no opera incidencias diariamente. |
-| Soporte TI | Atender problemas de acceso, configuración, integraciones, disponibilidad de la plataforma y soporte técnico a usuarios. | No cambia roles ni modifica incidencias operativas sin autorización. |
-| Bot asistente | Responder consultas autorizadas sobre estados, incidencias y métricas mediante Groq API. | Sólo lectura; no crea, actualiza ni elimina datos. |
+| Reportante | Iniciar sesión, crear incidencias, consultar sus propios reportes y adjuntar evidencias autorizadas. | No cambia estados finales, no administra usuarios y no modifica roles. |
+| Técnico | Consultar incidencias, atender casos, actualizar estado, registrar comentarios, diagnóstico, horas, etiquetas y evidencias; marcar una incidencia como resuelta. | No cierra definitivamente, no elimina incidencias y no administra roles. |
+| Coordinador | Supervisar operación, editar datos generales, validar y cerrar incidencias, eliminar registros cuando corresponda, revisar etiquetas y consultar analítica. | Sus acciones deben quedar autenticadas; no debe existir autoconcesión de privilegios. |
+| Directivo | Consultar incidencias y paneles de analítica para seguimiento institucional. | Rol de consulta; no crea, actualiza ni elimina incidencias. |
 
-## 5. Autenticación, registro y autorización
+Soporte TI puede existir como área o especialización del técnico, pero no como quinto rol en la versión actual. El bot asistente tampoco es un usuario con permisos: se propone para una fase futura y comenzaría sólo con consultas de lectura.
 
-### 5.1 Registro abierto
+## 3. Autenticación, usuarios y permisos
 
-1. El usuario proporciona nombre, correo institucional y contraseña.
-1. Supabase Auth crea la cuenta y gestiona la contraseña.
-1. Se verifica el correo institucional.
-1. El backend crea el perfil asociado.
-1. El sistema asigna automáticamente el rol reportante.
-1. El usuario puede iniciar sesión y registrar incidencias.
-### 5.2 Cambio de roles
+- El usuario se autentica en POST /api/auth/login; el backend consulta la colección usuarios.
+- La contraseña se verifica con bcrypt y el backend entrega un JWT. GET /api/auth/me valida la sesión activa.
+- Las rutas protegidas requieren JWT, usuario activo y rol permitido.
+- El repositorio actual no tiene endpoint de registro abierto. Si se decide habilitarlo, deberá crear usuarios con rol inicial reportante y aplicar validación de correo, estado activo y límites contra abuso.
+- Los roles no se autoconceden. Un eventual cambio de rol debe ser una operación explícita, auditada y reservada al coordinador autorizado o a una futura cuenta administrativa.
+{ "email": "usuario@universidad.mx", "rol": "reportante", "activo": true, "password_hash": "<bcrypt>", "fecha_creacion": "<Date>" }
 
-El coordinador autorizado podrá asignar o retirar roles. Aunque no habrá un flujo formal de solicitud, cada modificación deberá guardar el usuario que la realizó, el rol anterior, el rol nuevo, la fecha y el motivo. El usuario nunca podrá modificar sus propios permisos.
+## 4. Modelo de datos
 
-### 5.3 Validación de acceso
+| Colección | Contenido |
+| --- | --- |
+| usuarios | Identidad operativa, correo, hash de contraseña, rol y estado activo. |
+| incidencias_campus | Expediente completo: código, reportante, ubicación, categoría, detalle específico, estado, historial, tags, evidencias y fechas. |
+| contadores | Consecutivo diario generado de forma atómica para los códigos de incidencia. |
 
-```text
-Frontend -> JWT de Supabase -> Backend TypeScript -> Validación de rol -> MongoDB o Storage
-```
+Las evidencias físicas no se guardan dentro de MongoDB. Mongo conserva sus metadatos, mientras Supabase Storage mantiene los objetos en el bucket privado evidencias y entrega URLs firmadas con duración limitada.
 
-El frontend no se conectará directamente a MongoDB. Toda operación protegida pasará por la API de Next.js, que validará el JWT y los permisos antes de consultar o modificar información.
+{ "codigo": "INC-20261019-0001", "categoria": "computo_redes", "estado": "en proceso", "reportante": { "usuario_id": "...", "nombre": "...", "correo": "..." }, "detalle_especifico": { "tipo_falla": "switch", "direccion_ip": "192.168.1.10", "vlan": 20, "equipos_afectados": 12 }, "historial_seguimiento": [], "evidencias_adjuntas": [] }
 
-## 6. Flujo de una incidencia
+## 5. Categorías y datos específicos
 
-1. El reportante inicia sesión y crea una incidencia.
-1. El sistema valida categoría, prioridad, ubicación y detalle específico.
-1. Redis genera el consecutivo diario.
-1. MongoDB crea el documento con estado abierta e historial inicial.
-1. El coordinador revisa el reporte, ajusta la clasificación y asigna un técnico.
-1. El técnico cambia el estado a en proceso y registra avances.
-1. Si necesita información, materiales o un proveedor, cambia el estado a en espera.
-1. El técnico registra la solución y cambia el estado a resuelta.
-1. El coordinador valida la solución y cambia a cerrada o reabre el caso.
-1. MongoDB utiliza la información cerrada para analítica y aplica TTL después del periodo definido.
-```text
-abierta -> en_proceso -> en_espera -> en_proceso -> resuelta -> cerrada
-```
+Todas las incidencias comparten título, descripción, prioridad, ubicación, reportante, fechas y estado. La categoría determina detalle_especifico y el formulario valida sólo los campos correspondientes.
 
-## 7. Categorías de incidencia
-
-Toda incidencia compartirá datos generales y tendrá un campo `detalle_especifico` con una estructura distinta según su categoría. Esto permite aplicar polimorfismo documental sin llenar el documento con campos nulos.
-
-### 7.1 Datos generales
-
-El documento base solicita los siguientes datos para todas las incidencias:
-
-- `titulo`
-- `descripcion`
-- `categoria`
-- `prioridad`
-- `reportante{}`
-- `ubicacion{}`
-- `estado`
-- `tags[]`
-- `historial_seguimiento[]`
-- `evidencias_adjuntas[]`
-- `horas_invertidas`
-- `fecha_creacion`
-- `fecha_resolucion`, cuando corresponda
-
-El sistema también deberá generar un código formal, por ejemplo `INC-2026-0042`.
-
-### 7.2 Campos específicos por categoría
-
-| Categoría | Datos específicos solicitados | Roles principales |
+| Categoría | Campos específicos actuales | Ejemplo |
 | --- | --- | --- |
-| Cómputo y Telecomunicaciones | Dirección IP, VLAN, puerto uplink y conteo de equipos afectados. | Reportante, técnico operativo y coordinador. |
-| Infraestructura Física y Mantenimiento | Tipo de daño, riesgo para la seguridad, requerimiento de insumos e intervención de contratistas externos. | Reportante, técnico operativo y coordinador. |
-| Sistemas y Servicios Académicos | Plataforma afectada, código de curso, periodo escolar y cantidad de estudiantes impactados. | Reportante, Soporte TI y coordinador. |
+| Computo y redes | tipo_falla: switch, access_point, servidor o equipo_laboratorio; direccion_ip válida; vlan 1–4094; puerto_uplink; equipos_afectados. | Falla de switch en laboratorio, VLAN 20, 12 equipos afectados. |
+| Infraestructura | tipo_dano: filtracion, luminaria, climatizacion, cerradura u otro; riesgo_seguridad; requiere_contratista; insumos_requeridos y contratista_externo cuando aplica. | Filtración con riesgo medio que requiere contratista. |
+| Académico | plataforma: lms, portal_calificaciones o correo_institucional; periodo_escolar YYYY-1/2/3; estudiantes_impactados; codigo_curso salvo correo. | LMS no disponible en periodo 2026-1 para 35 estudiantes. |
 
-### 7.3 Ejemplos de detalle específico
+Las reglas de categoría se validan en Zod antes de guardar y también en el validador $jsonSchema de MongoDB. Esto evita que el documento termine con campos mezclados entre categorías.
 
-#### Cómputo y Telecomunicaciones
+## 6. Flujo operativo de una incidencia
 
-```json
-{
-  "categoria": "computo_telecomunicaciones",
-  "detalle_especifico": {
-    "direccion_ip": "192.168.10.25",
-    "vlan": 20,
-    "puerto_uplink": "SW-B-02-14",
-    "equipos_afectados": 25
-  }
-}
-```
+1. El usuario autorizado inicia sesión y recibe un JWT.
+1. El reportante captura los datos comunes, selecciona una categoría y completa su detalle específico.
+1. La API valida el payload, genera el código mediante contadores y guarda la incidencia en MongoDB con estado abierta.
+1. El técnico consulta la bandeja, atiende el caso y registra avances, horas, etiquetas, comentarios y evidencias.
+1. El técnico puede pasar el caso a en proceso, en espera o resuelta; no puede cerrarlo definitivamente.
+1. El coordinador revisa la solución y cambia resuelta a cerrada. Una incidencia cerrada no se reabre en el flujo actual.
+1. Directivo consulta el estado y la analítica sin intervenir en la operación.
+Estados permitidos: abierta, en proceso, en espera, resuelta y cerrada. La transición a cerrada está restringida al coordinador.
 
-#### Infraestructura Física y Mantenimiento
+## 7. Requerimientos funcionales
 
-```json
-{
-  "categoria": "infraestructura",
-  "detalle_especifico": {
-    "tipo_dano": "filtracion",
-    "riesgo_seguridad": true,
-    "requiere_insumos": true,
-    "requiere_contratista": true
-  }
-}
-```
-
-#### Sistemas y Servicios Académicos
-
-```json
-{
-  "categoria": "sistemas_academicos",
-  "detalle_especifico": {
-    "plataforma": "Portal de calificaciones",
-    "codigo_curso": "BDN-2026",
-    "periodo_escolar": "2026-B",
-    "estudiantes_impactados": 80
-  }
-}
-```
-
-### 7.4 Requisitos mínimos de población
-
-La colección deberá incluir:
-
-- Entre 20 y 30 incidencias sintéticas.
-- Distribución balanceada entre las tres categorías.
-- Al menos cuatro edificios o zonas.
-- Prioridades `baja`, `media`, `alta` y `critica`.
-- Estados `abierta`, `en_proceso`, `en_espera`, `resuelta` y `cerrada`.
-- Incidencias recurrentes.
-- Mínimo ocho incidencias con `fecha_resolucion`.
-- Mínimo quince incidencias con evidencias adjuntas.
-
-Los campos como marca del dispositivo, nivel de riesgo, mensaje de error, tipo de usuario afectado o zona afectada pueden agregarse como ampliaciones del equipo, pero no son campos obligatorios expresamente definidos por el documento base.
-
-## 8. Requisitos funcionales
-
-| ID | Requisito | Descripción |
+| ID | Función | Criterio |
 | --- | --- | --- |
-| RF-01 | Registro abierto | El sistema permitirá crear cuentas y asignará automáticamente el rol reportante. |
-| RF-02 | Inicio de sesión | El sistema permitirá autenticarse mediante Supabase Auth y devolver una sesión válida. |
-| RF-03 | Perfiles | El usuario podrá consultar y actualizar sus datos personales permitidos. |
-| RF-04 | Roles | El coordinador autorizado podrá asignar y retirar roles; toda modificación quedará auditada. |
-| RF-05 | Crear incidencia | El reportante podrá crear una incidencia con título, descripción, categoría, prioridad y ubicación. |
-| RF-06 | Validación polimórfica | El backend y MongoDB validarán el detalle específico correspondiente a la categoría. |
-| RF-07 | Código de incidencia | El sistema generará un código único mediante un contador diario. |
-| RF-08 | Asignación | El coordinador podrá asignar y reasignar técnicos y registrar el cambio en el historial. |
-| RF-09 | Estados | El sistema manejará abierta, en proceso, en espera, resuelta y cerrada. |
-| RF-10 | Seguimiento | Los técnicos y coordinadores podrán agregar comentarios, horas y cambios de estado. |
-| RF-11 | Etiquetas | El sistema agregará etiquetas sin duplicarlas y permitirá retirarlas. |
-| RF-12 | Evidencias | Los usuarios autorizados podrán subir imágenes y documentos a Storage; MongoDB guardará metadatos. |
-| RF-13 | Búsqueda textual | El sistema buscará por título y descripción mediante un índice de texto de MongoDB. |
-| RF-14 | Filtros | El sistema filtrará por categoría, estado, prioridad, edificio, técnico y fecha. |
-| RF-15 | Analítica | El sistema calculará tiempos promedio, horas totales, incidencias por edificio y ranking de etiquetas. |
-| RF-16 | Ciclo de vida | MongoDB eliminará automáticamente incidencias resueltas después del periodo TTL definido. |
-| RF-17 | API | La aplicación expondrá endpoints protegidos para usuarios, incidencias, evidencias y analítica. |
-| RF-18 | Pruebas Postman | Se comprobarán respuestas 201, 200, 400, 401 y 403 mediante una colección de Postman. |
-| RF-19 | Bot de consulta | El bot responderá preguntas autorizadas sin ejecutar operaciones de creación, actualización o eliminación. |
+| RF-01 | Inicio de sesión | Autenticar usuarios activos con bcrypt y JWT. |
+| RF-02 | Sesión | Consultar el usuario actual mediante /api/auth/me y proteger rutas. |
+| RF-03 | Crear incidencia | Reportante, técnico y coordinador pueden registrar una incidencia válida. |
+| RF-04 | Validación por categoría | Aplicar detalle específico y reglas propias de computo_redes, infraestructura y academico. |
+| RF-05 | Consecutivo | Generar códigos únicos con actualización atómica en contadores. |
+| RF-06 | Consulta | Listar, filtrar, paginar, ver detalle y buscar por texto. |
+| RF-07 | Estados | Actualizar estados respetando transiciones y permisos. |
+| RF-08 | Seguimiento | Registrar historial, horas, comentarios, diagnóstico y etiquetas. |
+| RF-09 | Evidencias | Subir imágenes/PDF de hasta 4 MB a Storage y guardar metadatos en Mongo. |
+| RF-10 | Analítica | Consultar incidencias por edificio y ranking de etiquetas para roles autorizados. |
+| RF-11 | Edición y borrado | Permitir al coordinador editar o eliminar una incidencia según las reglas del backend. |
+| RF-12 | Retención | Aplicar TTL a incidencias resueltas según el periodo definido por el proyecto. |
+| RF-13 | Pruebas | Mantener colección Postman/Newman para respuestas exitosas y errores 400, 401 y 403. |
 
-## 9. Requisitos no funcionales
+## 8. Requerimientos no funcionales
 
 | ID | Atributo | Criterio |
 | --- | --- | --- |
-| RNF-01 | Seguridad | Las contraseñas serán gestionadas por Supabase Auth; las claves permanecerán en variables de entorno. |
-| RNF-02 | Autorización | El backend validará JWT, usuario activo y permisos antes de cada operación protegida. |
-| RNF-03 | Privacidad | El acceso a incidencias, perfiles y archivos dependerá del rol y del área asignada. |
-| RNF-04 | Integridad | MongoDB usará $jsonSchema, índices, operaciones atómicas y tipos nativos. |
-| RNF-05 | Trazabilidad | Cada cambio de estado, asignación, etiqueta y comentario conservará usuario y fecha. |
-| RNF-06 | Rendimiento | Las consultas críticas utilizarán índices y los listados grandes tendrán paginación. |
-| RNF-07 | Disponibilidad | La solución se desplegará con MongoDB Atlas, Supabase, Storage y Vercel. |
-| RNF-08 | Escalabilidad | El modelo permitirá nuevas categorías, áreas, edificios y roles sin rediseñar el ticket. |
-| RNF-09 | Usabilidad | La interfaz será clara, responsive y mostrará sólo los campos pertinentes a cada categoría. |
-| RNF-10 | Mantenibilidad | El código utilizará TypeScript, módulos separados, validaciones y documentación de API. |
-| RNF-11 | Archivos | Los objetos se almacenarán fuera de MongoDB y se accederán mediante URLs temporales. |
-| RNF-12 | Bot | Groq recibirá únicamente datos necesarios y autorizados; no tendrá acceso directo a las bases. |
-| RNF-13 | Colaboración | Git gestionará ramas, revisiones, integración y trazabilidad del desarrollo. |
-| RNF-14 | Compatibilidad | La aplicación funcionará en navegadores modernos de escritorio y dispositivos móviles. |
+| RNF-01 | Seguridad | JWT, bcrypt, helmet, CORS, rate limiting, secretos en variables de entorno y bucket privado. |
+| RNF-02 | Integridad | Validación Zod, $jsonSchema, índices únicos y operaciones atómicas. |
+| RNF-03 | Rendimiento | Índices para código, reportante, texto, categoría/estado/edificio y paginación. |
+| RNF-04 | Disponibilidad | Despliegue en Vercel, MongoDB Atlas y Supabase Storage. |
+| RNF-05 | Mantenibilidad | Arquitectura por dominio, aplicación, infraestructura e interfaz HTTP; JavaScript ESM. |
+| RNF-06 | Usabilidad | Interfaz responsive y formularios que muestren los campos de la categoría elegida. |
+| RNF-07 | Trazabilidad | Historial de seguimiento con usuario, fecha y descripción del cambio. |
+| RNF-08 | Privacidad | URLs firmadas temporales y acceso a incidencias según rol. |
+| RNF-09 | Compatibilidad | Navegadores modernos en escritorio y móvil. |
+| RNF-10 | Colaboración | Git/GitHub con cambios revisables y documentación de API. |
 
-## 10. Operaciones de MongoDB requeridas
-
-| Operación | Uso en el sistema |
-| --- | --- |
-| $set | Actualizar estado, prioridad, fechas y datos de asignación. |
-| $inc | Acumular horas invertidas. |
-| $push | Agregar eventos al historial y metadatos de evidencias. |
-| $addToSet | Agregar etiquetas sin duplicarlas. |
-| $pull | Retirar etiquetas. |
-| $text | Buscar coincidencias en título y descripción. |
-| $unwind y $group | Construir ranking de etiquetas. |
-| $avg y $sum | Calcular promedios y totales por edificio. |
-| TTL | Eliminar documentos resueltos después del periodo establecido. |
-
-## 11. Endpoints iniciales
+## 9. API y entregables actuales
 
 | Método | Endpoint | Acceso |
 | --- | --- | --- |
-| POST | /api/incidencias | Reportante y coordinador |
-| GET | /api/incidencias | Según rol y área |
-| GET | /api/incidencias/:id | Según rol y pertenencia |
-| PATCH | /api/incidencias/:id/estado | Técnico y coordinador |
-| PATCH | /api/incidencias/:id/asignacion | Coordinador |
-| POST | /api/incidencias/:id/evidencias | Usuario autorizado |
-| GET | /api/analitica | Coordinador y Directivo |
-| PATCH | /api/usuarios/:id/roles | Coordinador autorizado |
-| GET | /api/bot/consulta | Usuario autenticado |
+| POST | /api/auth/login | Público |
+| GET | /api/auth/me | Autenticado |
+| POST | /api/incidencias | Reportante, técnico, coordinador |
+| GET | /api/incidencias y /:codigo | Autenticado |
+| GET | /api/incidencias/buscar | Autenticado |
+| PATCH | /api/incidencias/:codigo/estado | Técnico y coordinador |
+| PATCH/DELETE | /api/incidencias/:codigo | Coordinador |
+| POST | /api/incidencias/:codigo/evidencias | Usuario autorizado |
+| POST/DELETE | /api/incidencias/:codigo/tags | Usuario autorizado |
+| GET | /api/analitica/edificios y /tags | Coordinador y directivo |
+| GET | /api/health | Público |
 
-## 12. Decisiones actuales y pendientes
+El repositorio ya contiene frontend, backend, documentación, especificaciones, colección de Postman y entregables. La planificación debe partir de estas piezas y evitar rediseñar la arquitectura hacia Next.js, TypeScript o Supabase Auth sin una decisión nueva del equipo.
 
-| Tema | Decisión actual |
+## 10. Pendientes y fases posteriores
+
+| Tema | Estado |
 | --- | --- |
-| Registro | Abierto; rol inicial automático reportante. |
-| Roles | Los usuarios no se autoconceden permisos; el coordinador autorizado modifica roles. |
-| Administrador | No se incorpora como rol operativo en esta versión. |
-| Resolución | El técnico marca resuelta; el coordinador valida y cierra o reabre. |
-| Bot | Sólo consulta; no realiza POST, PATCH, PUT ni DELETE. |
-| Archivos | Supabase Storage; MongoDB conserva metadatos. |
-| Consecutivos | Redis o Upstash Redis si se cumple literalmente el caso CU-01. |
-| Pendiente | Definir coordinador inicial y alcance exacto de sus cambios de rol. |
-| Pendiente | Confirmar el periodo TTL con el docente antes de eliminar datos reales. |
+| Registro abierto | Pendiente: no existe endpoint; si se aprueba, inicia siempre como reportante. |
+| Bot Groq | Pendiente: comenzar sólo como consulta de lectura, sin acceso directo a bases ni mutaciones. |
+| Soporte TI | Pendiente: modelarlo como área/especialidad del técnico antes de convertirlo en rol. |
+| Cambio de roles | Pendiente: definir quién será coordinador inicial y agregar auditoría específica si se habilita. |
+| Supabase Auth/PostgreSQL | No necesario para la versión actual; evaluar sólo si se requiere proveedor externo de identidad. |
+| Redis/Upstash | Descartado en la versión actual; el consecutivo usa contadores atómicos de MongoDB. |
 
-## 13. Referencia base
+## 11. Referencia
 
-Proyecto Unidad II: Coordinación de Universidad Desk NoSQL Cloud. Sistema Integral de Gestión, Resolución y Analítica de Incidencias en el Campus. Documento académico proporcionado para la definición del proyecto.
+Documento académico base: Proyecto Unidad II UTM Desk NoSQL. Este borrador distingue los requisitos del proyecto de las decisiones de implementación verificadas en el repositorio utm-desk-nosql-cloud.
 
