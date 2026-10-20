@@ -39,6 +39,8 @@ Soporte TI puede existir como área o especialización del técnico, pero no com
 
 ## 4. Modelo de datos
 
+Inventario formal: la implementación actual utiliza exactamente tres colecciones de MongoDB: usuarios, incidencias_campus y contadores. No existen colecciones independientes de roles, ubicaciones, técnicos, asignaciones o evidencias; esas piezas se guardan como campos simples, snapshots o subdocumentos embebidos.
+
 | Colección | Contenido |
 | --- | --- |
 | usuarios | Identidad operativa, correo, hash de contraseña, rol y estado activo. |
@@ -46,6 +48,8 @@ Soporte TI puede existir como área o especialización del técnico, pero no com
 | contadores | Consecutivo diario generado de forma atómica para los códigos de incidencia. |
 
 Las evidencias físicas no se guardan dentro de MongoDB. Mongo conserva sus metadatos, mientras Supabase Storage mantiene los objetos en el bucket privado evidencias y entrega URLs firmadas con duración limitada.
+
+La relación entre usuarios e incidencias se resuelve mediante referencias ObjectId y snapshots embebidos: reportante.usuario_id identifica al usuario, mientras nombre, tipo y correo conservan los datos de la incidencia al momento de registrarla. El historial conserva su propio snapshot del autor.
 
 { "codigo": "INC-20261019-0001", "categoria": "computo_redes", "estado": "en proceso", "reportante": { "usuario_id": "...", "nombre": "...", "correo": "..." }, "detalle_especifico": { "tipo_falla": "switch", "direccion_ip": "192.168.1.10", "vlan": 20, "equipos_afectados": 12 }, "historial_seguimiento": [], "evidencias_adjuntas": [] }
 
@@ -61,6 +65,16 @@ Todas las incidencias comparten título, descripción, prioridad, ubicación, re
 
 Las reglas de categoría se validan en Zod antes de guardar y también en el validador $jsonSchema de MongoDB. Esto evita que el documento termine con campos mezclados entre categorías.
 
+### 5.1 Ejemplos JSON por categoría
+
+{ "categoria": "computo_redes", "detalle_especifico": { "tipo_falla": "switch", "direccion_ip": "192.168.1.10", "vlan": 20, "puerto_uplink": "SW-A-02-14", "equipos_afectados": 12 } }
+
+{ "categoria": "infraestructura", "detalle_especifico": { "tipo_dano": "filtracion", "riesgo_seguridad": "medio", "requiere_contratista": true, "insumos_requeridos": ["sellador"], "contratista_externo": "Servicios Generales" } }
+
+{ "categoria": "academico", "detalle_especifico": { "plataforma": "lms", "periodo_escolar": "2026-1", "estudiantes_impactados": 35, "codigo_curso": "BDN-2026" } }
+
+Estos ejemplos representan únicamente detalle_especifico. En el documento final deben integrarse con los campos comunes de la incidencia y con valores BSON Date para fecha_creacion, fecha_actualizacion y fecha_resolucion cuando corresponda.
+
 ## 6. Flujo operativo de una incidencia
 
 1. El usuario autorizado inicia sesión y recibe un JWT.
@@ -74,36 +88,50 @@ Estados permitidos: abierta, en proceso, en espera, resuelta y cerrada. La trans
 
 ## 7. Requerimientos funcionales
 
-| ID | Función | Criterio |
-| --- | --- | --- |
-| RF-01 | Inicio de sesión | Autenticar usuarios activos con bcrypt y JWT. |
-| RF-02 | Sesión | Consultar el usuario actual mediante /api/auth/me y proteger rutas. |
-| RF-03 | Crear incidencia | Reportante, técnico y coordinador pueden registrar una incidencia válida. |
-| RF-04 | Validación por categoría | Aplicar detalle específico y reglas propias de computo_redes, infraestructura y academico. |
-| RF-05 | Consecutivo | Generar códigos únicos con actualización atómica en contadores. |
-| RF-06 | Consulta | Listar, filtrar, paginar, ver detalle y buscar por texto. |
-| RF-07 | Estados | Actualizar estados respetando transiciones y permisos. |
-| RF-08 | Seguimiento | Registrar historial, horas, comentarios, diagnóstico y etiquetas. |
-| RF-09 | Evidencias | Subir imágenes/PDF de hasta 4 MB a Storage y guardar metadatos en Mongo. |
-| RF-10 | Analítica | Consultar incidencias por edificio y ranking de etiquetas para roles autorizados. |
-| RF-11 | Edición y borrado | Permitir al coordinador editar o eliminar una incidencia según las reglas del backend. |
-| RF-12 | Retención | Aplicar TTL a incidencias resueltas según el periodo definido por el proyecto. |
-| RF-13 | Pruebas | Mantener colección Postman/Newman para respuestas exitosas y errores 400, 401 y 403. |
+| ID | Función | Criterio de aceptación | Estado |
+| --- | --- | --- | --- |
+| RF-01 | Inicio de sesión | Autenticar usuarios activos con bcrypt y JWT. | Implementado |
+| RF-02 | Sesión | Consultar el usuario actual mediante /api/auth/me y proteger rutas. | Implementado |
+| RF-03 | Crear incidencia | Reportante, técnico y coordinador pueden registrar una incidencia válida. | Implementado |
+| RF-04 | Validación por categoría | Aplicar detalle específico y reglas propias de computo_redes, infraestructura y academico. | Implementado |
+| RF-05 | Consecutivo | Generar códigos diarios por categoría y anuales con actualización atómica en contadores. | Implementado |
+| RF-06 | Consulta | Listar, filtrar, paginar, ver detalle y buscar por texto. | Implementado |
+| RF-07 | Estados | Actualizar estados respetando transiciones y permisos. | Implementado |
+| RF-08 | Seguimiento | Registrar historial, horas, comentarios, diagnóstico y etiquetas. | Implementado |
+| RF-09 | Evidencias | Subir imágenes/PDF de hasta 4 MB a Storage y guardar metadatos en Mongo. | Implementado |
+| RF-10 | Analítica | Consultar incidencias por edificio y ranking de etiquetas para roles autorizados. | Implementado |
+| RF-11 | Edición y borrado | Permitir al coordinador editar o eliminar una incidencia según las reglas del backend. | Implementado |
+| RF-12 | Retención | Aplicar TTL a incidencias resueltas durante 60 días. | Implementado |
+| RF-13 | Pruebas | Mantener colección Postman/Newman para respuestas exitosas y errores 400, 401 y 403. | Por verificar en entrega |
+| RF-14 | Registro abierto | Crear cuentas nuevas con rol inicial reportante. | Pendiente |
+| RF-15 | Bot de consulta | Responder consultas autorizadas sin mutaciones. | Futuro |
 
 ## 8. Requerimientos no funcionales
 
-| ID | Atributo | Criterio |
+| ID | Atributo | Criterio verificable | Estado |
+| --- | --- | --- | --- |
+| RNF-01 | Seguridad | JWT, bcrypt, helmet, CORS, rate limiting, secretos en variables de entorno y bucket privado. | Implementado |
+| RNF-02 | Integridad | Validación Zod, $jsonSchema, índices únicos y operaciones atómicas. | Implementado |
+| RNF-03 | Rendimiento | Índices para código, reportante, texto, categoría/estado/edificio y paginación. | Implementado |
+| RNF-04 | Disponibilidad | Despliegue en Vercel, MongoDB Atlas y Supabase Storage. | Por verificar en nube |
+| RNF-05 | Mantenibilidad | Arquitectura por dominio, aplicación, infraestructura e interfaz HTTP; JavaScript ESM. | Implementado |
+| RNF-06 | Usabilidad | Interfaz responsive y formularios que muestren los campos de la categoría elegida. | Por validar manualmente |
+| RNF-07 | Trazabilidad | Historial de seguimiento con usuario, fecha y descripción del cambio. | Implementado |
+| RNF-08 | Privacidad | URLs firmadas temporales y acceso a incidencias según rol. | Implementado |
+| RNF-09 | Compatibilidad | Navegadores modernos en escritorio y móvil. | Por validar |
+| RNF-10 | Colaboración | Git/GitHub con cambios revisables y documentación de API. | Implementado |
+
+### 8.1 Matriz de correspondencia con los PDFs
+
+| Tema del enunciado | Implementación en la repo | Conclusión |
 | --- | --- | --- |
-| RNF-01 | Seguridad | JWT, bcrypt, helmet, CORS, rate limiting, secretos en variables de entorno y bucket privado. |
-| RNF-02 | Integridad | Validación Zod, $jsonSchema, índices únicos y operaciones atómicas. |
-| RNF-03 | Rendimiento | Índices para código, reportante, texto, categoría/estado/edificio y paginación. |
-| RNF-04 | Disponibilidad | Despliegue en Vercel, MongoDB Atlas y Supabase Storage. |
-| RNF-05 | Mantenibilidad | Arquitectura por dominio, aplicación, infraestructura e interfaz HTTP; JavaScript ESM. |
-| RNF-06 | Usabilidad | Interfaz responsive y formularios que muestren los campos de la categoría elegida. |
-| RNF-07 | Trazabilidad | Historial de seguimiento con usuario, fecha y descripción del cambio. |
-| RNF-08 | Privacidad | URLs firmadas temporales y acceso a incidencias según rol. |
-| RNF-09 | Compatibilidad | Navegadores modernos en escritorio y móvil. |
-| RNF-10 | Colaboración | Git/GitHub con cambios revisables y documentación de API. |
+| MongoDB Atlas | Colecciones incidencias_campus, usuarios y contadores; driver nativo sin Mongoose. | Cumple el núcleo NoSQL. |
+| Redis para consecutivo | Contadores atómicos en MongoDB mediante $inc y upsert. | Cambio de implementación; documentar que se descartó Redis por decisión del proyecto. |
+| Cloud Storage | Supabase Storage, bucket privado evidencias y URLs firmadas. | Cumple la estrategia de archivos. |
+| Tres categorías | computo_redes, infraestructura y academico con detalle_especifico polimórfico. | Cumple; los nombres son versiones compactas del enunciado. |
+| 20 a 30 incidencias y evidencias | Requisito del seed y del entregable académico. | Debe verificarse con db:seed y db:export. |
+| Pipelines de analítica | Analítica por edificio y ranking de tags. | Cumple en código; falta evidenciar resultados en el reporte final. |
+| Postman | Colección y pruebas de API en el repositorio. | Debe anexarse con códigos, cabeceras y payloads. |
 
 ## 9. API y entregables actuales
 
