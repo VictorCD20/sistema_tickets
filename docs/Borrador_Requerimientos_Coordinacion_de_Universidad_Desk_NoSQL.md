@@ -51,6 +51,125 @@ Las evidencias físicas no se guardan dentro de MongoDB. Mongo conserva sus meta
 
 La relación entre usuarios e incidencias se resuelve mediante referencias ObjectId y snapshots embebidos: reportante.usuario_id identifica al usuario, mientras nombre, tipo y correo conservan los datos de la incidencia al momento de registrarla. El historial conserva su propio snapshot del autor.
 
+### 4.1 Estructura general del sistema en JSON
+
+El siguiente ejemplo integra las tres colecciones de MongoDB y la referencia externa a Supabase Storage. No representa una colección adicional. Los valores `$oid` y `$date` utilizan Extended JSON para representar ObjectId y Date de MongoDB.
+
+```json
+{
+  "sistema": "utm_desk_nosql",
+  "colecciones": {
+    "usuarios": [
+      {
+        "_id": { "$oid": "6712abc1234567890abcd001" },
+        "nombre": "María López",
+        "correo": "maria.lopez@universidad.mx",
+        "password_hash": "$2b$10$hash_de_ejemplo",
+        "rol": "reportante",
+        "tipo": "docente",
+        "activo": true
+      }
+    ],
+    "incidencias_campus": [
+      {
+        "_id": { "$oid": "6712abc1234567890abcd010" },
+        "codigo": "INC-2026-0001",
+        "consecutivo_diario": 1,
+        "titulo": "Switch sin conectividad",
+        "descripcion": "Los equipos del laboratorio 204 no tienen conexión a Internet.",
+        "categoria": "computo_redes",
+        "prioridad": "alta",
+        "estado": "en proceso",
+        "reportante": {
+          "usuario_id": { "$oid": "6712abc1234567890abcd001" },
+          "nombre": "María López",
+          "tipo": "docente",
+          "correo": "maria.lopez@universidad.mx"
+        },
+        "asignado_a": {
+          "usuario_id": { "$oid": "6712abc1234567890abcd002" },
+          "nombre": "Carlos Hernández"
+        },
+        "ubicacion": {
+          "edificio": "Edificio A",
+          "piso": 2,
+          "espacio": "Laboratorio 204"
+        },
+        "detalle_especifico": {
+          "tipo_falla": "switch",
+          "direccion_ip": "192.168.1.10",
+          "vlan": 20,
+          "puerto_uplink": "SW-A-02-14",
+          "equipos_afectados": 12
+        },
+        "tags": ["red", "laboratorio"],
+        "historial_seguimiento": [
+          {
+            "fecha": { "$date": "2026-10-20T15:00:00.000Z" },
+            "autor": {
+              "usuario_id": { "$oid": "6712abc1234567890abcd001" },
+              "nombre": "María López"
+            },
+            "estado_nuevo": "abierta",
+            "comentario": "Incidencia registrada",
+            "horas": 0
+          },
+          {
+            "fecha": { "$date": "2026-10-20T16:00:00.000Z" },
+            "autor": {
+              "usuario_id": { "$oid": "6712abc1234567890abcd002" },
+              "nombre": "Carlos Hernández"
+            },
+            "estado_anterior": "abierta",
+            "estado_nuevo": "en proceso",
+            "comentario": "Se revisará el switch del laboratorio.",
+            "horas": 1.5
+          }
+        ],
+        "evidencias_adjuntas": [
+          {
+            "nombre_archivo": "foto-switch.jpg",
+            "tipo_mime": "image/jpeg",
+            "peso_kb": 840,
+            "storage_path": "incidencias/INC-2026-0001/foto-switch.jpg",
+            "url_storage": "https://storage.supabase.co/signed-url",
+            "url_expira": { "$date": "2026-10-20T17:00:00.000Z" },
+            "fecha_carga": { "$date": "2026-10-20T16:10:00.000Z" }
+          }
+        ],
+        "horas_invertidas": 1.5,
+        "fecha_creacion": { "$date": "2026-10-20T15:00:00.000Z" },
+        "fecha_actualizacion": { "$date": "2026-10-20T16:10:00.000Z" }
+      }
+    ],
+    "contadores": [
+      {
+        "_id": "contador:incidencias:2026-10-20:computo_redes",
+        "valor": 1
+      },
+      {
+        "_id": "contador:incidencias:anual:2026",
+        "valor": 1
+      }
+    ]
+  },
+  "almacenamiento_externo": {
+    "proveedor": "Supabase Storage",
+    "bucket": "evidencias",
+    "privado": true,
+    "objetos": [
+      {
+        "storage_path": "incidencias/INC-2026-0001/foto-switch.jpg",
+        "referenciado_desde": "incidencias_campus.evidencias_adjuntas",
+        "acceso": "URL firmada temporal"
+      }
+    ]
+  }
+}
+```
+
+El frontend no envía todo este documento. Envía sólo título, descripción, prioridad, ubicación, categoría y detalle específico. El backend agrega el usuario de la sesión, código, estado inicial, historial, fechas, contadores y metadatos de Storage.
+
 { "codigo": "INC-20261019-0001", "categoria": "computo_redes", "estado": "en proceso", "reportante": { "usuario_id": "...", "nombre": "...", "correo": "..." }, "detalle_especifico": { "tipo_falla": "switch", "direccion_ip": "192.168.1.10", "vlan": 20, "equipos_afectados": 12 }, "historial_seguimiento": [], "evidencias_adjuntas": [] }
 
 ## 5. Categorías y datos específicos
@@ -74,6 +193,43 @@ Las reglas de categoría se validan en Zod antes de guardar y también en el val
 { "categoria": "academico", "detalle_especifico": { "plataforma": "lms", "periodo_escolar": "2026-1", "estudiantes_impactados": 35, "codigo_curso": "BDN-2026" } }
 
 Estos ejemplos representan únicamente detalle_especifico. En el documento final deben integrarse con los campos comunes de la incidencia y con valores BSON Date para fecha_creacion, fecha_actualizacion y fecha_resolucion cuando corresponda.
+
+### 5.2 Payloads enviados por el frontend
+
+El frontend envía la misma estructura general para las tres categorías; únicamente cambia `categoria` y `detalle_especifico`.
+
+```json
+{
+  "titulo": "Switch sin conectividad",
+  "descripcion": "Los equipos del laboratorio 204 no tienen conexión a Internet.",
+  "prioridad": "alta",
+  "ubicacion": { "edificio": "Edificio A", "piso": 2, "espacio": "Laboratorio 204" },
+  "categoria": "computo_redes",
+  "detalle_especifico": { "tipo_falla": "switch", "direccion_ip": "192.168.1.10", "vlan": 20, "puerto_uplink": "SW-A-02-14", "equipos_afectados": 12 }
+}
+```
+
+```json
+{
+  "titulo": "Filtración en techo del aula",
+  "descripcion": "Se observa filtración de agua cerca de los contactos eléctricos.",
+  "prioridad": "critica",
+  "ubicacion": { "edificio": "Edificio B", "piso": 1, "espacio": "Aula B-101" },
+  "categoria": "infraestructura",
+  "detalle_especifico": { "tipo_dano": "filtracion", "riesgo_seguridad": "alto", "requiere_contratista": true, "insumos_requeridos": ["sellador", "escalera"], "contratista_externo": "Servicios Generales" }
+}
+```
+
+```json
+{
+  "titulo": "LMS no permite acceder al curso",
+  "descripcion": "Los estudiantes no pueden ingresar al aula virtual de la materia.",
+  "prioridad": "alta",
+  "ubicacion": { "edificio": "Edificio C", "piso": 3, "espacio": "Aula virtual" },
+  "categoria": "academico",
+  "detalle_especifico": { "plataforma": "lms", "periodo_escolar": "2026-1", "estudiantes_impactados": 35, "codigo_curso": "BDN-2026" }
+}
+```
 
 ## 6. Flujo operativo de una incidencia
 
